@@ -54,22 +54,31 @@ RCT_EXPORT_MODULE()
 
     map.isAccessibilityElement = YES;
     map.accessibilityElementsHidden = NO;
-    
+
     // MKMapView doesn't report tap events, so we attach gesture recognizers to it
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleMapTap:)];
+    UITapGestureRecognizer *doubleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleMapDoubleTap:)];
+    [doubleTap setNumberOfTapsRequired:2];
+    [tap requireGestureRecognizerToFail:doubleTap];
+
     UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleMapLongPress:)];
     UIPanGestureRecognizer *drag = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleMapDrag:)];
     [drag setMinimumNumberOfTouches:1];
     // setting this to NO allows the parent MapView to continue receiving marker selection events
     tap.cancelsTouchesInView = NO;
+    doubleTap.cancelsTouchesInView = NO;
     longPress.cancelsTouchesInView = NO;
+
+    doubleTap.delegate = self;
 
     // disable drag by default
     drag.enabled = NO;
-    
+
+
     drag.delegate = self;
 
     [map addGestureRecognizer:tap];
+    [map addGestureRecognizer:doubleTap];
     [map addGestureRecognizer:longPress];
     [map addGestureRecognizer:drag];
 
@@ -105,6 +114,7 @@ RCT_EXPORT_VIEW_PROPERTY(onChange, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onPanDrag, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onPress, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onLongPress, RCTBubblingEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onDoublePress, RCTBubblingEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onMarkerPress, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onMarkerSelect, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onMarkerDeselect, RCTDirectEventBlock)
@@ -125,7 +135,7 @@ RCT_CUSTOM_VIEW_PROPERTY(initialRegion, MKCoordinateRegion, AIRMap)
 RCT_CUSTOM_VIEW_PROPERTY(initialCamera, MKMapCamera, AIRMap)
 {
     if (json == nil) return;
-    
+
     // don't emit region change events when we are setting the initialCamera
     BOOL originalIgnore = view.ignoreRegionChanges;
     view.ignoreRegionChanges = YES;
@@ -152,7 +162,7 @@ RCT_CUSTOM_VIEW_PROPERTY(region, MKCoordinateRegion, AIRMap)
 RCT_CUSTOM_VIEW_PROPERTY(camera, MKMapCamera*, AIRMap)
 {
     if (json == nil) return;
-    
+
     // don't emit region change events when we are setting the camera
     BOOL originalIgnore = view.ignoreRegionChanges;
     view.ignoreRegionChanges = YES;
@@ -580,16 +590,16 @@ RCT_EXPORT_METHOD(coordinateForPoint:(nonnull NSNumber *)reactTag
                                   [overlay drawToSnapshot:snapshot context:UIGraphicsGetCurrentContext()];
                           }
                       }
-                      
+
                       for (id <MKAnnotation> annotation in mapView.annotations) {
                           CGPoint point = [snapshot pointForCoordinate:annotation.coordinate];
-                          
+
                           MKAnnotationView* anView = [mapView viewForAnnotation: annotation];
-                          
+
                           if (anView){
                               pin = anView;
                           }
-                          
+
                           if (CGRectContainsPoint(rect, point)) {
                               point.x = point.x + pin.centerOffset.x - (pin.bounds.size.width / 2.0f);
                               point.y = point.y + pin.centerOffset.y - (pin.bounds.size.height / 2.0f);
@@ -752,6 +762,25 @@ RCT_EXPORT_METHOD(coordinateForPoint:(nonnull NSNumber *)reactTag
                           @"y": @(touchPoint.y),
                           },
                   });
+
+}
+
+- (void)handleMapDoubleTap:(UIPanGestureRecognizer*)recognizer {
+    AIRMap *map = (AIRMap *)recognizer.view;
+    if (!map.onDoublePress) return;
+
+    CGPoint touchPoint = [recognizer locationInView:map];
+    CLLocationCoordinate2D coord = [map convertPoint:touchPoint toCoordinateFromView:map];
+    map.onDoublePress(@{
+                    @"coordinate": @{
+                            @"latitude": @(coord.latitude),
+                            @"longitude": @(coord.longitude),
+                            },
+                    @"position": @{
+                            @"x": @(touchPoint.x),
+                            @"y": @(touchPoint.y),
+                            },
+                    });
 
 }
 
@@ -938,7 +967,7 @@ static int kDragCenterContext;
     [self _regionChanged:mapView];
 
     AIRWeakTimerReference *weakTarget = [[AIRWeakTimerReference alloc] initWithTarget:self andSelector:@selector(_onTick:)];
-    
+
     mapView.regionChangeObserveTimer = [NSTimer timerWithTimeInterval:AIRMapRegionChangeObserveInterval
                                                                target:weakTarget
                                                              selector:@selector(timerDidFire:)

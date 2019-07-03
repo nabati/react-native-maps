@@ -36,7 +36,7 @@ public class AirMapManager extends ViewGroupManager<AirMapView> {
   private static final int FIT_TO_SUPPLIED_MARKERS = 6;
   private static final int FIT_TO_COORDINATES = 7;
   private static final int SET_MAP_BOUNDARIES = 8;
-  private static final int ANIMATE_TO_NAVIGATION = 9; 
+  private static final int ANIMATE_TO_NAVIGATION = 9;
   private static final int SET_INDOOR_ACTIVE_LEVEL_INDEX = 10;
   private static final int SET_CAMERA = 11;
   private static final int ANIMATE_CAMERA = 12;
@@ -378,12 +378,13 @@ public class AirMapManager extends ViewGroupManager<AirMapView> {
     map.putAll(MapBuilder.of(
         "onIndoorLevelActivated", MapBuilder.of("registrationName", "onIndoorLevelActivated"),
         "onIndoorBuildingFocused", MapBuilder.of("registrationName", "onIndoorBuildingFocused"),
+        "onDoublePress", MapBuilder.of("registrationName", "onDoublePress"),
         "onMapLoaded", MapBuilder.of("registrationName", "onMapLoaded")
     ));
 
     return map;
   }
-  
+
   @Nullable
   @Override
   public Map<String, Integer> getCommandsMap() {
